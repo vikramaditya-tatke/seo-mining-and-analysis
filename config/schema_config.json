@@ -1,0 +1,78 @@
+[
+  {
+    "alias": "Domain",
+    "path": [
+      "domain"
+    ]
+  },
+  {
+    "alias": "Global Rank",
+    "path": [
+      "overview",
+      "globalRank"
+    ]
+  },
+  {
+    "alias": "Total Visits",
+    "path": [
+      "overview",
+      "visitsTotalCount"
+    ]
+  },
+  {
+    "alias": "bounce_rate_raw",
+    "path": [
+      "overview",
+      "bounceRateFormatted"
+    ]
+  },
+  {
+    "alias": "Pages per Visit",
+    "path": [
+      "overview",
+      "pagesPerVisit"
+    ]
+  },
+  {
+    "alias": "Avg Visit Duration",
+    "path": [
+      "overview",
+      "visitsAvgDurationFormatted"
+    ]
+  },
+  {
+    "alias": "rank_history_raw",
+    "path": [
+      "ranking",
+      "globalRankCompetitorsHistory"
+    ]
+  },
+  {
+    "alias": "visits_history_raw",
+    "path": [
+      "traffic",
+      "visitsHistory"
+    ]
+  },
+  {
+    "alias": "Last Month Change",
+    "path": [
+      "traffic",
+      "visitsTotalCountChange"
+    ]
+  },
+  {
+    "alias": "top_countries_raw",
+    "path": [
+      "geography",
+      "topCountriesTraffics"
+    ]
+  },
+  {
+    "alias": "age_distribution_raw",
+    "path": [
+      "demographics",
+      "ageDistribution"
+    ]
+  }
+]
