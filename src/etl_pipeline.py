@@ -1,6 +1,8 @@
 import re
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List
+from time import perf_counter
+from typing import Optional
 
 import duckdb
 import orjson
@@ -11,7 +13,15 @@ from selectolax.parser import HTMLParser
 from src.models.data_field import DataField
 
 
-def load_extraction_config(config_path: Path) -> List[DataField]:
+@contextmanager
+def benchmark(name: str):
+    start = perf_counter()
+    yield
+    elapsed = perf_counter() - start
+    logger.info(f"BENCHMARK: {name} took {elapsed:.4f} seconds")
+
+
+def load_extraction_config(config_path: Path) -> list[DataField]:
     """Loads the extraction config from a JSON file and converts to DataField objects.
 
     Args:
@@ -33,15 +43,22 @@ def load_extraction_config(config_path: Path) -> List[DataField]:
     return [DataField(**field) for field in data]
 
 
-def extract(file_path: Path) -> Dict[str, Any]:
+def extract(file_path: Path) -> Optional[dict]:
     """Extracts the window.__APP_DATA__ JSON blob from an HTML file.
 
+    This function parses the HTML content to find the specific script tag containing
+    'window.__APP_DATA__' and extracts the JSON object assigned to it.
+
     Args:
-        file_path: The path to the HTML file.
+        file_path: The Path object pointing to the HTML file.
 
     Returns:
-        A dictionary containing the extracted JSON data, or an empty dictionary
-        if not found or on error.
+        A dictionary containing the parsed JSON data.
+
+    Raises:
+        FileNotFoundError: If the file does not exist.
+        ValueError: If the __APP_DATA__ pattern is not found.
+        orjson.JSONDecodeError: If the extracted JSON is invalid.
     """
     try:
         html_content = file_path.read_text(encoding="utf-8")
@@ -54,15 +71,13 @@ def extract(file_path: Path) -> Dict[str, Any]:
                     return orjson.loads(match.group(1))
 
         logger.warning(f"No __APP_DATA__ found in {file_path}")
-        return {}
     except (FileNotFoundError, UnicodeDecodeError, orjson.JSONDecodeError) as e:
         logger.error(f"Error processing {file_path}: {e}")
-        return {}
 
 
 def stage_1_polars_transform(
-    raw_data: List[Dict[str, Any]], schema: List[DataField]
-) -> pl.LazyFrame:
+    raw_data: list[dict], schema: list[DataField], csv_output_path: Path
+):
     """Uses Polars to isolate raw nested fields and perform initial scalar cleaning.
 
     Args:
@@ -100,50 +115,87 @@ def stage_1_polars_transform(
             .alias("Avg Visit Duration (Seconds)"),
         ]
     )
-    return lf
+    complex_columns = [
+        col
+        for col, dtype in lf.collect_schema().items()
+        if dtype in (pl.List, pl.Struct)
+    ]
+    lf = lf.with_columns(
+        [
+            pl.col(col).map_elements(
+                lambda x: orjson.dumps(
+                    x.to_list() if hasattr(x, "to_list") else x
+                ).decode("utf-8")
+                if x is not None
+                else None,
+                return_dtype=pl.String,
+            )
+            for col in complex_columns
+        ]
+    )
+    csv_output_path.parent.mkdir(parents=True, exist_ok=True)
+    lf.collect().write_csv(csv_output_path)
+    logger.info(f"Stage 1: Wrote intermediate CSV to {csv_output_path}")
 
 
-def stage_2_duckdb_transform(
-    df: pl.LazyFrame, sql_file_path: Path, output_file: Path, duckdb_file_path: Path
+def load_to_duckdb(
+    load_query_duckdb_file_path: Path, csv_input_file: Path, duckdb_file_path: Path
 ) -> None:
     """Uses DuckDB SQL for complex nested transformations and final output.
 
     Args:
-        df: The input Polars LazyFrame.
-        sql_file_path: Path to the SQL file containing the transformation query.
-        output_file: Path where the result CSV will be saved.
+        load_query_duckdb_file_path: Path to the SQL file containing the transformation
+        query.
         duckdb_file_path: Path to the DuckDB database file.
     """
-    if not sql_file_path.exists():
-        raise FileNotFoundError(f"SQL file not found: {sql_file_path}")
+    if not load_query_duckdb_file_path.exists():
+        raise FileNotFoundError(f"SQL file not found: {load_query_duckdb_file_path}")
 
-    with open(sql_file_path, "r") as file:
-        query = file.read()
+    with open(load_query_duckdb_file_path, "r") as file:
+        load_query = file.read()
+        load_query = load_query.replace("{csv_path}", str(csv_input_file))
 
-    logger.info("Running DuckDB Transformation")
-
-    export_query = f"COPY ({query}) TO '{output_file}' (HEADER, DELIMITER ',')"
-
-    duckdb_file_path.parent.mkdir(parents=True, exist_ok=True)
+    logger.info("Loading CSV into DuckDB")
 
     with duckdb.connect(str(duckdb_file_path)) as conn:
-        conn.register("source_data", df)
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS specter_interview
-            AS
-            SELECT * FROM source_data;
-        """)
-        conn.execute(export_query)
+        conn.execute(load_query)
 
-    logger.info(f"Successfully wrote results to {output_file}")
+    logger.info("Successfully loaded data into DuckDB table")
+
+
+def transform_in_duckdb(
+    transform_query_duckdb_file_path: Path, duckdb_file_path: Path
+) -> None:
+    """Uses DuckDB SQL for complex nested transformations and final output.
+
+    Args:
+        load_query_duckdb_file_path: Path to the SQL file containing the transformation
+        query.
+        duckdb_file_path: Path to the DuckDB database file.
+    """
+    if not transform_query_duckdb_file_path.exists():
+        raise FileNotFoundError(
+            f"SQL file not found: {transform_query_duckdb_file_path}"
+        )
+
+    with open(transform_query_duckdb_file_path, "r") as file:
+        transform_query = file.read()
+
+    logger.info("Transforming data in DuckDB")
+
+    with duckdb.connect(str(duckdb_file_path)) as conn:
+        conn.execute(transform_query)
+
+    logger.info("Successfully loaded data into DuckDB table")
 
 
 def pipeline(
-    files_to_process: List[Path],
+    files_to_process: list[Path],
     schema_config_path: Path,
-    sql_file_path: Path,
-    output_file: Path,
+    output_dir: Path,
     duckdb_file_path: Path,
+    duckdb_load_sql_path: Path,
+    duckdb_transform_sql_path: Path,
 ) -> None:
     """Orchestrates the ETL pipeline.
 
@@ -162,10 +214,20 @@ def pipeline(
     for file in files_to_process:
         raw_json_blobs.append(extract(file))
 
-    df_polars = stage_1_polars_transform(raw_json_blobs, schema_config)
-    stage_2_duckdb_transform(
-        df_polars,
-        sql_file_path,
-        output_file,
-        duckdb_file_path,
-    )
+    output_csv = output_dir / "polars_dump.csv"
+
+    with benchmark("stage_1_polars_transform"):
+        stage_1_polars_transform(raw_json_blobs, schema_config, output_csv)
+
+    with benchmark("stage_2_load_to_duckdb"):
+        load_to_duckdb(
+            duckdb_load_sql_path,
+            output_csv,
+            duckdb_file_path,
+        )
+
+    with benchmark("stage_3_transform_in_duckdb"):
+        transform_in_duckdb(
+            duckdb_transform_sql_path,
+            duckdb_file_path,
+        )
