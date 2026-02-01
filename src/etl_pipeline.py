@@ -15,6 +15,18 @@ from src.models.data_field import DataField
 
 @contextmanager
 def benchmark(name: str):
+    """Context manager for timing and logging execution duration.
+
+    Args:
+        name: A descriptive name for the operation being benchmarked.
+
+    Yields:
+        None
+
+    Example:
+        with benchmark("data_processing"):
+            process_data()
+    """
     start = perf_counter()
     yield
     elapsed = perf_counter() - start
@@ -79,13 +91,13 @@ def stage_1_polars_transform(
     raw_data: list[dict], schema: list[DataField], csv_output_path: Path
 ):
     """Uses Polars to isolate raw nested fields and perform initial scalar cleaning.
+    Writes the transformed data to a CSV file.
 
     Args:
         raw_data: A list of dictionaries containing the raw extracted data.
         schema: A list of DataField objects defining the extraction schema.
+        csv_output_path: Path where the intermediate CSV file will be written.
 
-    Returns:
-        A Polars LazyFrame with selected and pre-cleaned columns.
     """
     lf = pl.LazyFrame(raw_data, strict=False)
 
@@ -98,19 +110,9 @@ def stage_1_polars_transform(
             .str.strip_chars("%")
             .cast(pl.Float64, strict=False)
             .alias("Bounce Rate Percent"),
-            (
-                pl.col("Avg Visit Duration")
-                .str.strptime(pl.Time, "%H:%M:%S", strict=False)
-                .dt.hour()
-                * 3600
-                + pl.col("Avg Visit Duration")
-                .str.strptime(pl.Time, "%H:%M:%S", strict=False)
-                .dt.minute()
-                * 60
-                + pl.col("Avg Visit Duration")
-                .str.strptime(pl.Time, "%H:%M:%S", strict=False)
-                .dt.second()
-            )
+            pl.col("Avg Visit Duration")
+            .str.to_time("%H:%M:%S", strict=False)
+            .pipe(lambda t: t.dt.hour() * 3600 + t.dt.minute() * 60 + t.dt.second())
             .cast(pl.Int64)
             .alias("Avg Visit Duration (Seconds)"),
         ]
@@ -123,11 +125,7 @@ def stage_1_polars_transform(
     lf = lf.with_columns(
         [
             pl.col(col).map_elements(
-                lambda x: orjson.dumps(
-                    x.to_list() if hasattr(x, "to_list") else x
-                ).decode("utf-8")
-                if x is not None
-                else None,
+                lambda x: orjson.dumps(x).decode("utf-8") if x is not None else None,
                 return_dtype=pl.String,
             )
             for col in complex_columns
@@ -141,11 +139,11 @@ def stage_1_polars_transform(
 def load_to_duckdb(
     load_query_duckdb_file_path: Path, csv_input_file: Path, duckdb_file_path: Path
 ) -> None:
-    """Uses DuckDB SQL for complex nested transformations and final output.
+    """Loads CSV data into DuckDB and creates the source_data table.
 
     Args:
-        load_query_duckdb_file_path: Path to the SQL file containing the transformation
-        query.
+        load_query_duckdb_file_path: Path to the SQL file containing the load query.
+        csv_input_file: Path to the CSV file to be loaded into DuckDB.
         duckdb_file_path: Path to the DuckDB database file.
     """
     if not load_query_duckdb_file_path.exists():
@@ -166,11 +164,11 @@ def load_to_duckdb(
 def transform_in_duckdb(
     transform_query_duckdb_file_path: Path, duckdb_file_path: Path
 ) -> None:
-    """Uses DuckDB SQL for complex nested transformations and final output.
+    """Transforms loaded data in DuckDB using complex nested transformations.
 
     Args:
-        load_query_duckdb_file_path: Path to the SQL file containing the transformation
-        query.
+        transform_query_duckdb_file_path: Path to the SQL file containing the
+            transformation query.
         duckdb_file_path: Path to the DuckDB database file.
     """
     if not transform_query_duckdb_file_path.exists():
@@ -197,14 +195,20 @@ def pipeline(
     duckdb_load_sql_path: Path,
     duckdb_transform_sql_path: Path,
 ) -> None:
-    """Orchestrates the ETL pipeline.
+    """Orchestrates the ETL pipeline for processing HTML files.
+
+    The pipeline consists of three stages:
+    1. Extract JSON data from HTML files using selectolax
+    2. Transform and clean data using Polars, outputting to CSV
+    3. Load CSV into DuckDB and apply final transformations
 
     Args:
-        files_to_process: A list of paths to the files to process.
+        files_to_process: A list of paths to HTML files to process.
         schema_config_path: Path to the extraction configuration JSON file.
-        sql_file_path: Path to the DuckDB SQL transformation file.
-        output_file: Path where the result CSV will be saved.
+        output_dir: Directory where intermediate and output files will be saved.
         duckdb_file_path: Path to the DuckDB database file.
+        duckdb_load_sql_path: Path to the SQL file for loading data into DuckDB.
+        duckdb_transform_sql_path: Path to the SQL file for transforming data in DuckDB.
     """
     schema_config = load_extraction_config(schema_config_path)
     logger.info(f"Loaded {len(schema_config)} fields from config")
