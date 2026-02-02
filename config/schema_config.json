@@ -1,19 +1,19 @@
 [
   {
-    "alias": "Domain",
+    "alias": "domain",
     "path": [
       "domain"
     ]
   },
   {
-    "alias": "Global Rank",
+    "alias": "global_rank",
     "path": [
       "overview",
       "globalRank"
     ]
   },
   {
-    "alias": "Total Visits",
+    "alias": "total_visits",
     "path": [
       "overview",
       "visitsTotalCount"
@@ -27,14 +27,14 @@
     ]
   },
   {
-    "alias": "Pages per Visit",
+    "alias": "pages_per_visit",
     "path": [
       "overview",
       "pagesPerVisit"
     ]
   },
   {
-    "alias": "Avg Visit Duration",
+    "alias": "avg_visit_duration_raw",
     "path": [
       "overview",
       "visitsAvgDurationFormatted"
@@ -55,7 +55,7 @@
     ]
   },
   {
-    "alias": "Last Month Change",
+    "alias": "last_month_change",
     "path": [
       "traffic",
       "visitsTotalCountChange"

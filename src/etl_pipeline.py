@@ -22,10 +22,6 @@ def benchmark(name: str):
 
     Yields:
         None
-
-    Example:
-        with benchmark("data_processing"):
-            process_data()
     """
     start = perf_counter()
     yield
@@ -58,9 +54,6 @@ def load_extraction_config(config_path: Path) -> list[DataField]:
 def extract(file_path: Path) -> Optional[dict]:
     """Extracts the window.__APP_DATA__ JSON blob from an HTML file.
 
-    This function parses the HTML content to find the specific script tag containing
-    'window.__APP_DATA__' and extracts the JSON object assigned to it.
-
     Args:
         file_path: The Path object pointing to the HTML file.
 
@@ -91,13 +84,11 @@ def stage_1_polars_transform(
     raw_data: list[dict], schema: list[DataField], csv_output_path: Path
 ):
     """Uses Polars to isolate raw nested fields and perform initial scalar cleaning.
-    Writes the transformed data to a CSV file.
 
     Args:
         raw_data: A list of dictionaries containing the raw extracted data.
         schema: A list of DataField objects defining the extraction schema.
         csv_output_path: Path where the intermediate CSV file will be written.
-
     """
     lf = pl.LazyFrame(raw_data, strict=False)
 
@@ -109,12 +100,12 @@ def stage_1_polars_transform(
             pl.col("bounce_rate_raw")
             .str.strip_chars("%")
             .cast(pl.Float64, strict=False)
-            .alias("Bounce Rate Percent"),
-            pl.col("Avg Visit Duration")
+            .alias("bounce_rate_percent"),
+            pl.col("avg_visit_duration_raw")
             .str.to_time("%H:%M:%S", strict=False)
             .pipe(lambda t: t.dt.hour() * 3600 + t.dt.minute() * 60 + t.dt.second())
             .cast(pl.Int64)
-            .alias("Avg Visit Duration (Seconds)"),
+            .alias("avg_visit_duration_seconds"),
         ]
     )
     complex_columns = [
@@ -200,11 +191,6 @@ def pipeline(
     duckdb_transform_sql_path: Path,
 ) -> None:
     """Orchestrates the ETL pipeline for processing HTML files.
-
-    The pipeline consists of three stages:
-    1. Extract JSON data from HTML files using selectolax
-    2. Transform and clean data using Polars, outputting to CSV
-    3. Load CSV into DuckDB and apply final transformations
 
     Args:
         files_to_process: A list of paths to HTML files to process.
