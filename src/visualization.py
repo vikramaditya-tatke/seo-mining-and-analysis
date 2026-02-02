@@ -229,7 +229,7 @@ def plot_relative_ranking(conn: duckdb.DuckDBPyConnection, output_dir: Path) -> 
             y=alt.Y("domain:N", sort="x"),
             color=alt.Color(
                 "combined_rank:Q",
-                scale=alt.Scale(scheme="orangered", reverse=True),
+                scale=alt.Scale(scheme="redyellowgreen", reverse=True),
                 legend=None,
             ),
             tooltip=["domain", "combined_rank"],
