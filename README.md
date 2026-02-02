@@ -60,7 +60,7 @@ Extract the following data points:
 - Clean and normalise the data for example
   - The string "87.0B" is better represented as 87,000,000,000
   - The duration "00:10:35" is better represented as seconds 635
-- Import the CSV into SQLite
+- Import the CSV into DuckDB
 - Attempt to cast the data to data types, please don't cast all the data to Text
 
 ## Step 3: Analyze the data and plot the results on appropriate graphs and save the graphs as image files.
