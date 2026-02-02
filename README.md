@@ -55,7 +55,7 @@ Extract the following data points:
 9. Top Countries
 10. Age Distribution
 
-## Step 2: Transform the extracted data, and load it into a SQLite file
+## Step 2: Transform the extracted data, and load it into a DuckDB file
 
 - Clean and normalise the data for example
   - The string "87.0B" is better represented as 87,000,000,000
