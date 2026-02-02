@@ -5,26 +5,25 @@ description = "SEO Mining and Analysis Pipeline"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "altair>=0.6.0",
     "duckdb>=1.4.4",
-    "kaleido>=1.2.0",
     "loguru>=0.7.3",
-    "numpy>=2.4.2",
     "orjson>=3.11.0",
     "pandas>=3.0.0",
-    "plotly>=6.5.2",
     "polars>=1.37.1",
     "pyarrow>=23.0.0",
     "pydantic>=2.12.5",
     "selectolax>=0.4.6",
+    "vl-convert-python>=1.9.0.post1",
 ]
 
 [dependency-groups]
 dev = [
-    "ruff>=0.9.0",
     "pre-commit>=4.0.0",
     "marimo>=0.19.7",
     "pytest>=9.0.0",
     "pytest-timeout>=2.4.0",
+    "ruff>=0.9.0",
 ]
 
 [tool.ruff]

@@ -1,210 +1,282 @@
-"""Visualization module for SEO metrics analysis.
+"""Visualization module for SEO metrics using Altair.
 
-This module provides functions to create visualizations using Plotly Express
-for the analysis results.
+This module creates individual PNG charts separated by scale for better readability.
 """
 
 from pathlib import Path
 
+import altair as alt
 import duckdb
-import plotly.express as px
-import plotly.graph_objects as go
 from loguru import logger
-from plotly.subplots import make_subplots
 
 
-def plot_mom_visits(duckdb_file_path: Path, output_path: Path) -> None:
-    """Creates and saves a line chart for month-over-month visit growth.
+def plot_mom_visits(conn: duckdb.DuckDBPyConnection, output_dir: Path) -> None:
+    """Creates Month-over-Month visits charts.
+
+    Separates charts by scale: startups (stripe, crunchbase, pitchbook) on one chart,
+    google on a separate chart due to massive scale difference.
+
+    Args:
+        conn: DuckDB connection.
+        output_dir: Directory to save PNG charts.
+    """
+    startups_df = conn.execute(
+        """SELECT * FROM monthly_visit_changes
+           WHERE visits IS NOT NULL
+           AND domain IN ('stripe.com', 'crunchbase.com', 'pitchbook.com')
+           ORDER BY month, domain"""
+    ).fetchdf()
+
+    google_df = conn.execute(
+        """SELECT * FROM monthly_visit_changes
+           WHERE visits IS NOT NULL AND domain = 'google.com'
+           ORDER BY month"""
+    ).fetchdf()
+
+    if not startups_df.empty:
+        (
+            alt.Chart(startups_df)
+            .mark_line(point=True, strokeWidth=3)
+            .encode(
+                x="month:T",
+                y=alt.Y("visits:Q", scale=alt.Scale(zero=True)),
+                color=alt.Color("domain:N", legend=alt.Legend(orient="right")),
+                tooltip=["month", "domain", "visits", "mom_growth_percent:Q"],
+            )
+            .properties(
+                title="Month-over-Month Website Visits - Startups",
+                width=800,
+                height=500,
+            )
+            .save(output_dir / "mom_visits_startups.png", scale_factor=3)
+        )
+        logger.info("Saved mom_visits_startups.png")
+
+    if not google_df.empty:
+        (
+            alt.Chart(google_df)
+            .mark_line(point=True, color="#DB4437", strokeWidth=3)
+            .encode(
+                x="month:T",
+                y="visits:Q",
+                tooltip=["month", "visits", "mom_growth_percent:Q"],
+            )
+            .properties(
+                title="Month-over-Month Website Visits - Google", width=800, height=500
+            )
+            .save(output_dir / "mom_visits_google.png", scale_factor=3)
+        )
+        logger.info("Saved mom_visits_google.png")
+
+
+def plot_mom_rank(conn: duckdb.DuckDBPyConnection, output_dir: Path) -> None:
+    """Creates Month-over-Month rank charts.
+
+    Separates charts by scale: startups (stripe, crunchbase, pitchbook) on one chart,
+    google on separate chart (rank 1), byte-trading on separate chart (highly volatile).
+
+    Args:
+        conn: DuckDB connection.
+        output_dir: Directory to save PNG charts.
+    """
+    startups_df = conn.execute(
+        """SELECT * FROM monthly_rank_changes
+           WHERE domain IN ('stripe.com', 'crunchbase.com', 'pitchbook.com')
+           ORDER BY month, domain"""
+    ).fetchdf()
+
+    google_df = conn.execute(
+        """SELECT * FROM monthly_rank_changes
+           WHERE domain = 'google.com'
+           ORDER BY month"""
+    ).fetchdf()
+
+    byte_df = conn.execute(
+        """SELECT * FROM monthly_rank_changes
+           WHERE domain = 'byte-trading.com'
+           ORDER BY month"""
+    ).fetchdf()
+
+    if not startups_df.empty:
+        (
+            alt.Chart(startups_df)
+            .mark_line(point=True, strokeWidth=3)
+            .encode(
+                x="month:T",
+                y=alt.Y("rank:Q", scale=alt.Scale(reverse=True)),
+                color=alt.Color("domain:N", legend=alt.Legend(orient="right")),
+                tooltip=[
+                    "month",
+                    "domain",
+                    "rank",
+                    "rank_change",
+                    "rank_change_percent:Q",
+                ],
+            )
+            .properties(
+                title="Month-over-Month Global Rank - Startups", width=800, height=500
+            )
+            .save(output_dir / "mom_rank_startups.png", scale_factor=3)
+        )
+        logger.info("Saved mom_rank_startups.png")
+
+    if not google_df.empty:
+        (
+            alt.Chart(google_df)
+            .mark_line(point=True, color="#DB4437", strokeWidth=3)
+            .encode(
+                x="month:T",
+                y=alt.Y("rank:Q", scale=alt.Scale(reverse=True)),
+                tooltip=["month", "rank", "rank_change"],
+            )
+            .properties(
+                title="Month-over-Month Global Rank - Google", width=800, height=500
+            )
+            .save(output_dir / "mom_rank_google.png", scale_factor=3)
+        )
+        logger.info("Saved mom_rank_google.png")
+
+    if not byte_df.empty:
+        (
+            alt.Chart(byte_df)
+            .mark_line(point=True, color="#4285F4", strokeWidth=3)
+            .encode(
+                x="month:T",
+                y=alt.Y("rank:Q", scale=alt.Scale(reverse=True)),
+                tooltip=["month", "rank", "rank_change", "rank_change_percent:Q"],
+            )
+            .properties(
+                title="Month-over-Month Global Rank - Byte-trading",
+                width=800,
+                height=500,
+            )
+            .save(output_dir / "mom_rank_byte_trading.png", scale_factor=3)
+        )
+        logger.info("Saved mom_rank_byte_trading.png")
+
+
+def plot_relative_ranking(conn: duckdb.DuckDBPyConnection, output_dir: Path) -> None:
+    """Creates horizontal bar charts for relative ranking comparison.
+
+    Displays three metrics: visit growth percentage, rank change (positive=better),
+    and combined score (lower=better).
+
+    Args:
+        conn: DuckDB connection.
+        output_dir: Directory to save PNG charts.
+    """
+    df = conn.execute(
+        """SELECT domain, visit_growth, rank_change, combined_rank
+           FROM relative_ranking ORDER BY combined_rank"""
+    ).fetchdf()
+
+    visit_growth_df = df[df["visit_growth"].notna()]
+
+    visit_chart = (
+        alt.Chart(visit_growth_df)
+        .transform_calculate(
+            sign="datum.visit_growth > 0 ? 1 : datum.visit_growth < 0 ? -1 : 0"
+        )
+        .mark_bar()
+        .encode(
+            x="visit_growth:Q",
+            y=alt.Y("domain:N", sort="-x"),
+            color=alt.Color(
+                "sign:O",
+                scale=alt.Scale(
+                    domain=[-1, 0, 1], range=["#e74c3c", "#f1c40f", "#2ecc71"]
+                ),
+                legend=None,
+            ),
+            tooltip=["domain", "visit_growth:Q"],
+        )
+        .properties(title="Visit Growth by Domain", width=600, height=200)
+    )
+
+    rank_normal_df = df[abs(df["rank_change"]) < 1000000]
+    rank_extreme_df = df[abs(df["rank_change"]) >= 1000000]
+
+    rank_chart = (
+        alt.Chart(rank_normal_df)
+        .transform_calculate(
+            sign="datum.rank_change > 0 ? 1 : datum.rank_change < 0 ? -1 : 0"
+        )
+        .mark_bar()
+        .encode(
+            x="rank_change:Q",
+            y=alt.Y("domain:N", sort="-x"),
+            color=alt.Color(
+                "sign:O",
+                scale=alt.Scale(
+                    domain=[-1, 0, 1], range=["#e74c3c", "#f1c40f", "#2ecc71"]
+                ),
+                legend=None,
+            ),
+            tooltip=["domain", "rank_change"],
+        )
+        .properties(
+            title="Rank Change by Domain (excluding extreme values)",
+            width=600,
+            height=200,
+        )
+    )
+
+    score_chart = (
+        alt.Chart(df)
+        .mark_bar()
+        .encode(
+            x="combined_rank:Q",
+            y=alt.Y("domain:N", sort="x"),
+            color=alt.Color(
+                "combined_rank:Q",
+                scale=alt.Scale(scheme="orangered", reverse=True),
+                legend=None,
+            ),
+            tooltip=["domain", "combined_rank"],
+        )
+        .properties(title="Combined Score by Domain", width=600, height=200)
+    )
+
+    charts = [visit_chart, rank_chart, score_chart]
+    if not rank_extreme_df.empty:
+        rank_extreme_chart = (
+            alt.Chart(rank_extreme_df)
+            .transform_calculate(
+                sign="datum.rank_change > 0 ? 1 : datum.rank_change < 0 ? -1 : 0"
+            )
+            .mark_bar()
+            .encode(
+                x="rank_change:Q",
+                y=alt.Y("domain:N", sort="-x"),
+                color=alt.Color(
+                    "sign:O",
+                    scale=alt.Scale(
+                        domain=[-1, 0, 1], range=["#e74c3c", "#f1c40f", "#2ecc71"]
+                    ),
+                    legend=None,
+                ),
+                tooltip=["domain", "rank_change"],
+            )
+            .properties(title="Rank Change - Extreme Values", width=600, height=100)
+        )
+        charts.insert(2, rank_extreme_chart)
+
+    alt.vconcat(*charts, spacing=20).properties(
+        title="Relative Ranking Summary", padding=20
+    ).save(output_dir / "relative_ranking.png", scale_factor=3)
+    logger.info("Saved relative_ranking.png")
+
+
+def plot_all_analyses(duckdb_file_path: Path, output_dir: Path) -> None:
+    """Creates all PNG visualization charts.
 
     Args:
         duckdb_file_path: Path to the DuckDB database file.
-        output_path: Path where the PNG file will be saved.
+        output_dir: Directory where PNG charts will be saved.
     """
-    query = "SELECT * FROM monthly_visit_changes"
+    output_dir.mkdir(parents=True, exist_ok=True)
 
-    with duckdb.connect(str(duckdb_file_path)) as conn:
-        df = conn.execute(query).pl()
-
-    if df.is_empty():
-        logger.warning("No data available for MoM visits visualization")
-        return
-
-    df_pandas = df.to_pandas()
-
-    fig = px.line(
-        df_pandas,
-        x="month",
-        y="visits",
-        color="Domain",
-        title="Month-over-Month Website Visits",
-        markers=True,
-        labels={"visits": "Visits", "month": "Month", "Domain": "Domain"},
-        hover_data=["mom_growth_percent"],
-    )
-
-    fig.update_layout(
-        xaxis_title="Month",
-        yaxis_title="Visits",
-        hovermode="x unified",
-        template="plotly_white",
-        height=600,
-    )
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.write_image(str(output_path), scale=2)
-    logger.info(f"Saved MoM visits chart to {output_path}")
-
-
-def plot_mom_rank(duckdb_file_path: Path, output_path: Path) -> None:
-    """Creates and saves a line chart for month-over-month rank changes.
-
-    Args:
-        duckdb_file_path: Path to the DuckDB database file.
-        output_path: Path where the PNG file will be saved.
-    """
-    query = "SELECT * FROM monthly_rank_changes"
-
-    with duckdb.connect(str(duckdb_file_path)) as conn:
-        df = conn.execute(query).pl()
-
-    if df.is_empty():
-        logger.warning("No data available for MoM rank visualization")
-        return
-
-    df_pandas = df.to_pandas()
-
-    fig = px.line(
-        df_pandas,
-        x="month",
-        y="rank",
-        color="Domain",
-        title="Month-over-Month Global Rank (Lower is Better)",
-        markers=True,
-        labels={"rank": "Global Rank", "month": "Month", "Domain": "Domain"},
-        hover_data=["rank_change", "rank_change_percent"],
-    )
-
-    fig.update_layout(
-        xaxis_title="Month",
-        yaxis_title="Global Rank",
-        yaxis={"autorange": "reversed"},
-        hovermode="x unified",
-        template="plotly_white",
-        height=600,
-    )
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.write_image(str(output_path), scale=2)
-    logger.info(f"Saved MoM rank chart to {output_path}")
-
-
-def plot_relative_ranking(duckdb_file_path: Path, output_path: Path) -> None:
-    """Creates and saves a bar chart for relative ranking scores.
-
-    Args:
-        duckdb_file_path: Path to the DuckDB database file.
-        output_path: Path where the PNG file will be saved.
-    """
-    query = "SELECT * FROM relative_ranking"
-
-    with duckdb.connect(str(duckdb_file_path)) as conn:
-        df = conn.execute(query).pl()
-
-    if df.is_empty():
-        logger.warning("No data available for relative ranking visualization")
-        return
-
-    df_pandas = df.to_pandas()
-
-    fig = make_subplots(
-        rows=2,
-        cols=2,
-        subplot_titles=(
-            "Visit Growth %",
-            "Rank Change",
-            "Individual Rankings",
-            "Combined Score (lower is better)",
-        ),
-    )
-
-    fig.add_trace(
-        go.Bar(
-            x=df_pandas["Domain"],
-            y=df_pandas["Visit Growth %"],
-            name="Visit Growth %",
-            marker_color="lightblue",
-        ),
-        row=1,
-        col=1,
-    )
-
-    fig.add_trace(
-        go.Bar(
-            x=df_pandas["Domain"],
-            y=df_pandas["Rank Change"],
-            name="Rank Change",
-            marker_color="lightcoral",
-        ),
-        row=1,
-        col=2,
-    )
-
-    fig.add_trace(
-        go.Bar(
-            x=df_pandas["Domain"],
-            y=df_pandas["Visits Rank"],
-            name="Visits Rank",
-            marker_color="lightblue",
-            showlegend=False,
-        ),
-        row=2,
-        col=1,
-    )
-    fig.add_trace(
-        go.Bar(
-            x=df_pandas["Domain"],
-            y=df_pandas["Rank Improvement Rank"],
-            name="Rank Improvement Rank",
-            marker_color="lightcoral",
-            showlegend=False,
-        ),
-        row=2,
-        col=1,
-    )
-
-    fig.add_trace(
-        go.Bar(
-            x=df_pandas["Domain"],
-            y=df_pandas["Combined Rank (lower is better)"],
-            name="Combined Score",
-            marker_color="lightgreen",
-            showlegend=False,
-        ),
-        row=2,
-        col=2,
-    )
-
-    fig.update_layout(
-        title_text="Relative SEO Performance Analysis",
-        template="plotly_white",
-        height=800,
-    )
-
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    fig.write_image(str(output_path), scale=2)
-    logger.info(f"Saved relative ranking chart to {output_path}")
-
-
-def plot_all_analyses(
-    duckdb_file_path: Path,
-    output_dir: Path,
-) -> None:
-    """Creates and saves all visualization charts.
-
-    Args:
-        duckdb_file_path: Path to the DuckDB database file.
-        output_dir: Directory where PNG files will be saved.
-    """
-    plot_mom_visits(duckdb_file_path, output_dir / "mom_visits.png")
-    plot_mom_rank(duckdb_file_path, output_dir / "mom_rank.png")
-    plot_relative_ranking(duckdb_file_path, output_dir / "relative_ranking.png")
+    with duckdb.connect(duckdb_file_path) as conn:
+        plot_mom_visits(conn, output_dir)
+        plot_mom_rank(conn, output_dir)
+        plot_relative_ranking(conn, output_dir)
