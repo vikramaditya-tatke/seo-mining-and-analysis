@@ -4,33 +4,7 @@ ETL pipeline for extracting, transforming, and analyzing SEO metrics from Simila
 
 ## Data Flow
 
-```mermaid
-flowchart TD
-    A[HTML Files] --> B[selectolax<br/>Extract JSON]
-    B --> C[Polars<br/>Clean & Normalize]
-    C --> D[CSV File]
-    D --> E[DuckDB<br/>Load & Transform]
-    E --> F[Views Created]
-    F --> G[Analysis Queries]
-    G --> H[Altair Charts]
-
-    subgraph "Stage 1: Extract"
-        A
-        B
-    end
-
-    subgraph "Stage 2: Transform"
-        C
-        D
-    end
-
-    subgraph "Stage 3: Load & Analyze"
-        E
-        F
-        G
-        H
-    end
-```
+<img width="1738" height="1018" alt="Data Scraping Pipeline excalidraw" src="https://github.com/user-attachments/assets/d8810969-1af4-4182-ac5d-9fa5dce5f560" />
 
 ## Task
 
