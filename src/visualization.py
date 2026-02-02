@@ -5,6 +5,7 @@ This module creates individual PNG charts separated by scale for better readabil
 
 from pathlib import Path
 
+import altair as alt
 import duckdb
 from loguru import logger
 
@@ -19,64 +20,52 @@ def plot_mom_visits(conn: duckdb.DuckDBPyConnection, output_dir: Path) -> None:
         conn: DuckDB connection.
         output_dir: Directory to save PNG charts.
     """
-    import altair as alt
-
     startups_df = conn.execute(
         """SELECT * FROM monthly_visit_changes
            WHERE visits IS NOT NULL
-           AND Domain IN ('stripe.com', 'crunchbase.com', 'pitchbook.com')
-           ORDER BY month, Domain"""
+           AND domain IN ('stripe.com', 'crunchbase.com', 'pitchbook.com')
+           ORDER BY month, domain"""
     ).fetchdf()
 
     google_df = conn.execute(
         """SELECT * FROM monthly_visit_changes
-           WHERE visits IS NOT NULL AND Domain = 'google.com'
+           WHERE visits IS NOT NULL AND domain = 'google.com'
            ORDER BY month"""
     ).fetchdf()
 
     if not startups_df.empty:
-        chart = (
+        (
             alt.Chart(startups_df)
             .mark_line(point=True, strokeWidth=3)
             .encode(
-                x=alt.X("month:T", title="Month"),
-                y=alt.Y("visits:Q", title="Visits"),
-                color=alt.Color("Domain:N", legend=alt.Legend(orient="right")),
-                tooltip=[
-                    alt.Tooltip("month:T", title="Month"),
-                    alt.Tooltip("visits:Q", title="Visits", format=","),
-                    alt.Tooltip("mom_growth_percent:Q", title="Growth %", format=".2f"),
-                ],
+                x="month:T",
+                y=alt.Y("visits:Q", scale=alt.Scale(zero=True)),
+                color=alt.Color("domain:N", legend=alt.Legend(orient="right")),
+                tooltip=["month", "domain", "visits", "mom_growth_percent:Q"],
             )
             .properties(
                 title="Month-over-Month Website Visits - Startups",
                 width=800,
                 height=500,
             )
+            .save(output_dir / "mom_visits_startups.png", scale_factor=3)
         )
-        chart.save(str(output_dir / "mom_visits_startups.png"), scale_factor=3)
         logger.info("Saved mom_visits_startups.png")
 
     if not google_df.empty:
-        chart = (
+        (
             alt.Chart(google_df)
             .mark_line(point=True, color="#DB4437", strokeWidth=3)
             .encode(
-                x=alt.X("month:T", title="Month"),
-                y=alt.Y("visits:Q", title="Visits"),
-                tooltip=[
-                    alt.Tooltip("month:T", title="Month"),
-                    alt.Tooltip("visits:Q", title="Visits", format=","),
-                    alt.Tooltip("mom_growth_percent:Q", title="Growth %", format=".2f"),
-                ],
+                x="month:T",
+                y="visits:Q",
+                tooltip=["month", "visits", "mom_growth_percent:Q"],
             )
             .properties(
-                title="Month-over-Month Website Visits - Google",
-                width=800,
-                height=500,
+                title="Month-over-Month Website Visits - Google", width=800, height=500
             )
+            .save(output_dir / "mom_visits_google.png", scale_factor=3)
         )
-        chart.save(str(output_dir / "mom_visits_google.png"), scale_factor=3)
         logger.info("Saved mom_visits_google.png")
 
 
@@ -90,93 +79,79 @@ def plot_mom_rank(conn: duckdb.DuckDBPyConnection, output_dir: Path) -> None:
         conn: DuckDB connection.
         output_dir: Directory to save PNG charts.
     """
-    import altair as alt
-
     startups_df = conn.execute(
         """SELECT * FROM monthly_rank_changes
-           WHERE Domain IN ('stripe.com', 'crunchbase.com', 'pitchbook.com')
-           ORDER BY month, Domain"""
+           WHERE domain IN ('stripe.com', 'crunchbase.com', 'pitchbook.com')
+           ORDER BY month, domain"""
     ).fetchdf()
 
     google_df = conn.execute(
         """SELECT * FROM monthly_rank_changes
-           WHERE Domain = 'google.com'
+           WHERE domain = 'google.com'
            ORDER BY month"""
     ).fetchdf()
 
     byte_df = conn.execute(
         """SELECT * FROM monthly_rank_changes
-           WHERE Domain = 'byte-trading.com'
+           WHERE domain = 'byte-trading.com'
            ORDER BY month"""
     ).fetchdf()
 
     if not startups_df.empty:
-        chart = (
+        (
             alt.Chart(startups_df)
             .mark_line(point=True, strokeWidth=3)
             .encode(
-                x=alt.X("month:T", title="Month"),
-                y=alt.Y("rank:Q", title="Global Rank", scale=alt.Scale(reverse=True)),
-                color=alt.Color("Domain:N", legend=alt.Legend(orient="right")),
+                x="month:T",
+                y=alt.Y("rank:Q", scale=alt.Scale(reverse=True)),
+                color=alt.Color("domain:N", legend=alt.Legend(orient="right")),
                 tooltip=[
-                    alt.Tooltip("month:T", title="Month"),
-                    alt.Tooltip("rank:Q", title="Rank", format=","),
-                    alt.Tooltip("rank_change:Q", title="Change", format="+,"),
-                    alt.Tooltip(
-                        "rank_change_percent:Q", title="Change %", format=".2f"
-                    ),
+                    "month",
+                    "domain",
+                    "rank",
+                    "rank_change",
+                    "rank_change_percent:Q",
                 ],
             )
             .properties(
                 title="Month-over-Month Global Rank - Startups", width=800, height=500
             )
+            .save(output_dir / "mom_rank_startups.png", scale_factor=3)
         )
-        chart.save(str(output_dir / "mom_rank_startups.png"), scale_factor=3)
         logger.info("Saved mom_rank_startups.png")
 
     if not google_df.empty:
-        chart = (
+        (
             alt.Chart(google_df)
             .mark_line(point=True, color="#DB4437", strokeWidth=3)
             .encode(
-                x=alt.X("month:T", title="Month"),
-                y=alt.Y("rank:Q", title="Global Rank", scale=alt.Scale(reverse=True)),
-                tooltip=[
-                    alt.Tooltip("month:T", title="Month"),
-                    alt.Tooltip("rank:Q", title="Rank", format=","),
-                    alt.Tooltip("rank_change:Q", title="Change", format="+,"),
-                ],
+                x="month:T",
+                y=alt.Y("rank:Q", scale=alt.Scale(reverse=True)),
+                tooltip=["month", "rank", "rank_change"],
             )
             .properties(
                 title="Month-over-Month Global Rank - Google", width=800, height=500
             )
+            .save(output_dir / "mom_rank_google.png", scale_factor=3)
         )
-        chart.save(str(output_dir / "mom_rank_google.png"), scale_factor=3)
         logger.info("Saved mom_rank_google.png")
 
     if not byte_df.empty:
-        chart = (
+        (
             alt.Chart(byte_df)
             .mark_line(point=True, color="#4285F4", strokeWidth=3)
             .encode(
-                x=alt.X("month:T", title="Month"),
-                y=alt.Y("rank:Q", title="Global Rank", scale=alt.Scale(reverse=True)),
-                tooltip=[
-                    alt.Tooltip("month:T", title="Month"),
-                    alt.Tooltip("rank:Q", title="Rank", format=","),
-                    alt.Tooltip("rank_change:Q", title="Change", format="+,"),
-                    alt.Tooltip(
-                        "rank_change_percent:Q", title="Change %", format=".2f"
-                    ),
-                ],
+                x="month:T",
+                y=alt.Y("rank:Q", scale=alt.Scale(reverse=True)),
+                tooltip=["month", "rank", "rank_change", "rank_change_percent:Q"],
             )
             .properties(
                 title="Month-over-Month Global Rank - Byte-trading",
                 width=800,
                 height=500,
             )
+            .save(output_dir / "mom_rank_byte_trading.png", scale_factor=3)
         )
-        chart.save(str(output_dir / "mom_rank_byte_trading.png"), scale_factor=3)
         logger.info("Saved mom_rank_byte_trading.png")
 
 
@@ -190,68 +165,105 @@ def plot_relative_ranking(conn: duckdb.DuckDBPyConnection, output_dir: Path) -> 
         conn: DuckDB connection.
         output_dir: Directory to save PNG charts.
     """
-    import altair as alt
-
     df = conn.execute(
-        """SELECT Domain, visit_growth, rank_change, combined_rank
+        """SELECT domain, visit_growth, rank_change, combined_rank
            FROM relative_ranking ORDER BY combined_rank"""
     ).fetchdf()
 
+    visit_growth_df = df[df["visit_growth"].notna()]
+
     visit_chart = (
-        alt.Chart(df)
+        alt.Chart(visit_growth_df)
+        .transform_calculate(
+            sign="datum.visit_growth > 0 ? 1 : datum.visit_growth < 0 ? -1 : 0"
+        )
         .mark_bar()
         .encode(
-            x=alt.X("visit_growth:Q", title="Visit Growth %"),
-            y=alt.Y("Domain:N", sort=None, title=""),
+            x="visit_growth:Q",
+            y=alt.Y("domain:N", sort="-x"),
             color=alt.Color(
-                "visit_growth:Q",
-                scale=alt.Scale(scheme="redyellowgreen"),
+                "sign:O",
+                scale=alt.Scale(
+                    domain=[-1, 0, 1], range=["#e74c3c", "#f1c40f", "#2ecc71"]
+                ),
                 legend=None,
             ),
-            tooltip=[
-                alt.Tooltip("Domain:N"),
-                alt.Tooltip("visit_growth:Q", format=".2f"),
-            ],
+            tooltip=["domain", "visit_growth:Q"],
         )
         .properties(title="Visit Growth by Domain", width=600, height=200)
     )
 
+    rank_normal_df = df[abs(df["rank_change"]) < 1000000]
+    rank_extreme_df = df[abs(df["rank_change"]) >= 1000000]
+
     rank_chart = (
-        alt.Chart(df)
+        alt.Chart(rank_normal_df)
+        .transform_calculate(
+            sign="datum.rank_change > 0 ? 1 : datum.rank_change < 0 ? -1 : 0"
+        )
         .mark_bar()
         .encode(
-            x=alt.X("rank_change:Q", title="Rank Change (Positive=Better)"),
-            y=alt.Y("Domain:N", sort=None, title=""),
+            x="rank_change:Q",
+            y=alt.Y("domain:N", sort="-x"),
             color=alt.Color(
-                "rank_change:Q",
-                scale=alt.Scale(scheme="redyellowgreen"),
+                "sign:O",
+                scale=alt.Scale(
+                    domain=[-1, 0, 1], range=["#e74c3c", "#f1c40f", "#2ecc71"]
+                ),
                 legend=None,
             ),
-            tooltip=[alt.Tooltip("Domain:N"), alt.Tooltip("rank_change:Q", format=",")],
+            tooltip=["domain", "rank_change"],
         )
-        .properties(title="Rank Change by Domain", width=600, height=200)
+        .properties(
+            title="Rank Change by Domain (excluding extreme values)",
+            width=600,
+            height=200,
+        )
     )
 
     score_chart = (
-        alt.Chart(df.sort_values("combined_rank", ignore_index=True))
+        alt.Chart(df)
         .mark_bar()
         .encode(
-            x=alt.X("combined_rank:Q", title="Combined Score (Lower is Better)"),
-            y=alt.Y("Domain:N", sort=None, title=""),
+            x="combined_rank:Q",
+            y=alt.Y("domain:N", sort="x"),
             color=alt.Color(
                 "combined_rank:Q",
-                scale=alt.Scale(scheme="viridis", reverse=True),
+                scale=alt.Scale(scheme="orangered", reverse=True),
                 legend=None,
             ),
-            tooltip=[alt.Tooltip("Domain:N"), alt.Tooltip("combined_rank:Q")],
+            tooltip=["domain", "combined_rank"],
         )
         .properties(title="Combined Score by Domain", width=600, height=200)
     )
 
-    chart = alt.vconcat(visit_chart, rank_chart, score_chart, spacing=20).properties(
+    charts = [visit_chart, rank_chart, score_chart]
+    if not rank_extreme_df.empty:
+        rank_extreme_chart = (
+            alt.Chart(rank_extreme_df)
+            .transform_calculate(
+                sign="datum.rank_change > 0 ? 1 : datum.rank_change < 0 ? -1 : 0"
+            )
+            .mark_bar()
+            .encode(
+                x="rank_change:Q",
+                y=alt.Y("domain:N", sort="-x"),
+                color=alt.Color(
+                    "sign:O",
+                    scale=alt.Scale(
+                        domain=[-1, 0, 1], range=["#e74c3c", "#f1c40f", "#2ecc71"]
+                    ),
+                    legend=None,
+                ),
+                tooltip=["domain", "rank_change"],
+            )
+            .properties(title="Rank Change - Extreme Values", width=600, height=100)
+        )
+        charts.insert(2, rank_extreme_chart)
+
+    alt.vconcat(*charts, spacing=20).properties(
         title="Relative Ranking Summary", padding=20
-    )
-    chart.save(str(output_dir / "relative_ranking.png"), scale_factor=3)
+    ).save(output_dir / "relative_ranking.png", scale_factor=3)
     logger.info("Saved relative_ranking.png")
 
 
@@ -262,10 +274,9 @@ def plot_all_analyses(duckdb_file_path: Path, output_dir: Path) -> None:
         duckdb_file_path: Path to the DuckDB database file.
         output_dir: Directory where PNG charts will be saved.
     """
-    output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    with duckdb.connect(str(duckdb_file_path)) as conn:
+    with duckdb.connect(duckdb_file_path) as conn:
         plot_mom_visits(conn, output_dir)
         plot_mom_rank(conn, output_dir)
         plot_relative_ranking(conn, output_dir)
