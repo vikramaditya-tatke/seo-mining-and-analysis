@@ -2,22 +2,9 @@ from pathlib import Path
 
 from loguru import logger
 
+from src.analysis import run_all_analyses
 from src.etl_pipeline import pipeline
-
-# def concise_log_sink(message):
-#     record = message.record
-#     subset = {
-#         "time": record["time"].isoformat(),
-#         "message": record["message"],
-#         "level": record["level"].name,
-#         "file": record["file"].name,
-#         "line": record["line"],
-#     }
-#     sys.stderr.write(orjson.dumps(subset).decode("utf-8") + "\n")
-
-
-# logger.remove()
-# logger.add(concise_log_sink)
+from src.visualization import plot_all_analyses
 
 
 @logger.catch
@@ -41,14 +28,22 @@ def main():
         "duckdb_file_path": project_root / "db/scraped_data.duckdb",
         "duckdb_load_sql_path": project_root / "sql/duckdb_load.sql",
         "duckdb_transform_sql_path": project_root / "sql/duckdb_transform.sql",
-        # "sqlite_file_path": project_root / "db/specter_interview_task.sqlite",
-        # "sqlite_load_sql_path": project_root / "sql/sqlite_transform.sql",
-        # "sqlite_load_sql_path": project_root / "sql/sqlite_load.sql",
     }
 
     logger.info(f"Starting ETL Pipeline for {len(files_to_process)} files")
     pipeline(**pipeline_args)
     logger.info("Pipeline Finished")
+
+    # Run analysis queries
+    analysis_args = {
+        "duckdb_file_path": project_root / "db/scraped_data.duckdb",
+        "mom_visits_sql_path": project_root / "sql/duckdb_mom_visits.sql",
+        "mom_rank_sql_path": project_root / "sql/duckdb_mom_rank.sql",
+        "relative_scale_sql_path": project_root / "sql/duckdb_relative_scale.sql",
+        "output_dir": project_root / "data/visualizations",
+    }
+    run_all_analyses(**analysis_args)
+    plot_all_analyses(analysis_args["duckdb_file_path"], analysis_args["output_dir"])
 
 
 if __name__ == "__main__":
