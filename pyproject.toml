@@ -1,12 +1,17 @@
 [project]
-name = "prefect-seo-mining"
+name = "seo-mining-and-analysis"
 version = "0.1.0"
-description = "Prefect SEO Mining and Analysis"
+description = "SEO Mining and Analysis Pipeline"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "duckdb>=1.4.4",
+    "kaleido>=1.2.0",
     "loguru>=0.7.3",
+    "numpy>=2.4.2",
+    "orjson>=3.11.0",
+    "pandas>=3.0.0",
+    "plotly>=6.5.2",
     "polars>=1.37.1",
     "pyarrow>=23.0.0",
     "pydantic>=2.12.5",
@@ -18,6 +23,8 @@ dev = [
     "ruff>=0.9.0",
     "pre-commit>=4.0.0",
     "marimo>=0.19.7",
+    "pytest>=9.0.0",
+    "pytest-timeout>=2.4.0",
 ]
 
 [tool.ruff]
