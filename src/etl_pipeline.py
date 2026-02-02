@@ -125,7 +125,11 @@ def stage_1_polars_transform(
     lf = lf.with_columns(
         [
             pl.col(col).map_elements(
-                lambda x: orjson.dumps(x).decode("utf-8") if x is not None else None,
+                lambda x: orjson.dumps(
+                    x.to_list() if hasattr(x, "to_list") else x
+                ).decode("utf-8")
+                if x is not None
+                else None,
                 return_dtype=pl.String,
             )
             for col in complex_columns
