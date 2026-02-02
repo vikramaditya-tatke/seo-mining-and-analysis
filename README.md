@@ -4,7 +4,7 @@ ETL pipeline for extracting, transforming, and analyzing SEO metrics from Simila
 
 ## Data Flow
 
-<img width="1738" height="1018" alt="Data Scraping Pipeline excalidraw" src="https://github.com/user-attachments/assets/d8810969-1af4-4182-ac5d-9fa5dce5f560" />
+<img width="1738" height="1099" alt="Data Scraping Pipeline excalidraw(1)" src="https://github.com/user-attachments/assets/3e761b71-aa88-455c-8c40-462359b43219" />
 
 ## Task
 
