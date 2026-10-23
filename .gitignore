@@ -38,6 +38,8 @@ prefect.db
 
 # Ruff Cache
 .ruff_cache/
+.pytest_cache/
+.verification/
 
 # VS Code
 .vscode/

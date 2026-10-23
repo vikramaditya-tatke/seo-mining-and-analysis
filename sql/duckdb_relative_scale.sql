@@ -44,11 +44,12 @@ rank_changes AS (
 ),
 metrics AS (
     SELECT
-        v.domain,
+        t.domain,
         ROUND(((v.last_month_visits - v.first_month_visits) * 100.0 / NULLIF(v.first_month_visits, 0)), 2) AS visit_growth_pct,
         (r.first_month_rank - r.last_month_rank) AS rank_change
-    FROM visits_growth v
-    JOIN rank_changes r ON v.domain = r.domain
+    FROM transformed_data t
+    LEFT JOIN visits_growth v ON t.domain = v.domain
+    LEFT JOIN rank_changes r ON t.domain = r.domain
 ),
 rankings AS (
     SELECT

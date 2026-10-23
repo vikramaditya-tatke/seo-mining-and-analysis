@@ -10,6 +10,27 @@ import duckdb
 from loguru import logger
 
 
+def save_monthly_chart(
+    chart: alt.Chart, output_path: Path, growth_field: str, growth_title: str
+) -> None:
+    """Save levels and monthly growth together so PNGs expose both metrics."""
+    chart = chart.encode(
+        x=alt.X(
+            "month:T",
+            title="Month",
+            scale=alt.Scale(type="utc"),
+            axis=alt.Axis(format="%b %Y", tickCount="month", labelAngle=0),
+        )
+    )
+    growth_chart = chart.encode(
+        y=alt.Y(f"{growth_field}:Q", title="Change (%)", scale=alt.Scale(zero=True)),
+        tooltip=["month:T", "domain:N", alt.Tooltip(f"{growth_field}:Q", format=".2f")],
+    ).properties(title=growth_title, height=220)
+    alt.vconcat(chart, growth_chart, spacing=30).resolve_scale(y="independent").save(
+        output_path, scale_factor=3
+    )
+
+
 def plot_mom_visits(conn: duckdb.DuckDBPyConnection, output_dir: Path) -> None:
     """Creates Month-over-Month visits charts.
 
@@ -34,7 +55,7 @@ def plot_mom_visits(conn: duckdb.DuckDBPyConnection, output_dir: Path) -> None:
     ).fetchdf()
 
     if not startups_df.empty:
-        (
+        save_monthly_chart(
             alt.Chart(startups_df)
             .mark_line(point=True, strokeWidth=3)
             .encode(
@@ -47,13 +68,15 @@ def plot_mom_visits(conn: duckdb.DuckDBPyConnection, output_dir: Path) -> None:
                 title="Month-over-Month Website Visits - Startups",
                 width=800,
                 height=500,
-            )
-            .save(output_dir / "mom_visits_startups.png", scale_factor=3)
+            ),
+            output_dir / "mom_visits_startups.png",
+            "mom_growth_percent",
+            "Month-over-Month Visit Growth (%)",
         )
         logger.info("Saved mom_visits_startups.png")
 
     if not google_df.empty:
-        (
+        save_monthly_chart(
             alt.Chart(google_df)
             .mark_line(point=True, color="#DB4437", strokeWidth=3)
             .encode(
@@ -63,8 +86,10 @@ def plot_mom_visits(conn: duckdb.DuckDBPyConnection, output_dir: Path) -> None:
             )
             .properties(
                 title="Month-over-Month Website Visits - Google", width=800, height=500
-            )
-            .save(output_dir / "mom_visits_google.png", scale_factor=3)
+            ),
+            output_dir / "mom_visits_google.png",
+            "mom_growth_percent",
+            "Month-over-Month Visit Growth (%)",
         )
         logger.info("Saved mom_visits_google.png")
 
@@ -98,7 +123,7 @@ def plot_mom_rank(conn: duckdb.DuckDBPyConnection, output_dir: Path) -> None:
     ).fetchdf()
 
     if not startups_df.empty:
-        (
+        save_monthly_chart(
             alt.Chart(startups_df)
             .mark_line(point=True, strokeWidth=3)
             .encode(
@@ -115,13 +140,15 @@ def plot_mom_rank(conn: duckdb.DuckDBPyConnection, output_dir: Path) -> None:
             )
             .properties(
                 title="Month-over-Month Global Rank - Startups", width=800, height=500
-            )
-            .save(output_dir / "mom_rank_startups.png", scale_factor=3)
+            ),
+            output_dir / "mom_rank_startups.png",
+            "rank_change_percent",
+            "Month-over-Month Numerical Rank Change (%, lower is better)",
         )
         logger.info("Saved mom_rank_startups.png")
 
     if not google_df.empty:
-        (
+        save_monthly_chart(
             alt.Chart(google_df)
             .mark_line(point=True, color="#DB4437", strokeWidth=3)
             .encode(
@@ -131,13 +158,15 @@ def plot_mom_rank(conn: duckdb.DuckDBPyConnection, output_dir: Path) -> None:
             )
             .properties(
                 title="Month-over-Month Global Rank - Google", width=800, height=500
-            )
-            .save(output_dir / "mom_rank_google.png", scale_factor=3)
+            ),
+            output_dir / "mom_rank_google.png",
+            "rank_change_percent",
+            "Month-over-Month Numerical Rank Change (%, lower is better)",
         )
         logger.info("Saved mom_rank_google.png")
 
     if not byte_df.empty:
-        (
+        save_monthly_chart(
             alt.Chart(byte_df)
             .mark_line(point=True, color="#4285F4", strokeWidth=3)
             .encode(
@@ -149,8 +178,10 @@ def plot_mom_rank(conn: duckdb.DuckDBPyConnection, output_dir: Path) -> None:
                 title="Month-over-Month Global Rank - Byte-trading",
                 width=800,
                 height=500,
-            )
-            .save(output_dir / "mom_rank_byte_trading.png", scale_factor=3)
+            ),
+            output_dir / "mom_rank_byte_trading.png",
+            "rank_change_percent",
+            "Month-over-Month Numerical Rank Change (%, lower is better)",
         )
         logger.info("Saved mom_rank_byte_trading.png")
 

@@ -33,3 +33,7 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["B","E", "F", "I", "W"] # pycodestyle, Pyflakes, isort, warnings
 ignore = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

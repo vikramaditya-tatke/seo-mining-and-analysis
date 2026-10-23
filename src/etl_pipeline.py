@@ -58,12 +58,8 @@ def extract(file_path: Path) -> Optional[dict]:
         file_path: The Path object pointing to the HTML file.
 
     Returns:
-        A dictionary containing the parsed JSON data.
-
-    Raises:
-        FileNotFoundError: If the file does not exist.
-        ValueError: If the __APP_DATA__ pattern is not found.
-        orjson.JSONDecodeError: If the extracted JSON is invalid.
+        Parsed JSON data, or None if the file cannot be read or has no valid
+        __APP_DATA__ assignment. Extraction failures are logged.
     """
     try:
         html_content = file_path.read_text(encoding="utf-8")
@@ -103,7 +99,11 @@ def stage_1_polars_transform(
             .alias("bounce_rate_percent"),
             pl.col("avg_visit_duration_raw")
             .str.to_time("%H:%M:%S", strict=False)
-            .pipe(lambda t: t.dt.hour() * 3600 + t.dt.minute() * 60 + t.dt.second())
+            .pipe(
+                lambda t: t.dt.hour().cast(pl.Int64) * 3600
+                + t.dt.minute().cast(pl.Int64) * 60
+                + t.dt.second().cast(pl.Int64)
+            )
             .cast(pl.Int64)
             .alias("avg_visit_duration_seconds"),
         ]
@@ -146,10 +146,13 @@ def load_to_duckdb(
 
     with open(load_query_duckdb_file_path, "r") as file:
         load_query = file.read()
-        load_query = load_query.replace("{csv_path}", str(csv_input_file))
+        load_query = load_query.replace(
+            "{csv_path}", str(csv_input_file).replace("'", "''")
+        )
 
     logger.info("Loading CSV into DuckDB")
 
+    duckdb_file_path.parent.mkdir(parents=True, exist_ok=True)
     with duckdb.connect(str(duckdb_file_path)) as conn:
         conn.execute(load_query)
 
@@ -206,7 +209,10 @@ def pipeline(
     raw_json_blobs = []
 
     for file in files_to_process:
-        raw_json_blobs.append(extract(file))
+        raw_data = extract(file)
+        if raw_data is None:
+            raise ValueError(f"Extraction failed for {file}")
+        raw_json_blobs.append(raw_data)
 
     output_csv = output_dir / "polars_dump.csv"
 

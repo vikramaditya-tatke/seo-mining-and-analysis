@@ -33,17 +33,13 @@ def create_views(
     with duckdb.connect(str(duckdb_file_path)) as conn:
         for view_name, sql_path in sql_files.items():
             if not sql_path.exists():
-                logger.warning(f"SQL file not found: {sql_path}")
-                continue
+                raise FileNotFoundError(f"SQL file not found: {sql_path}")
 
             with open(sql_path, "r") as f:
                 sql = f.read()
 
-            try:
-                conn.execute(sql)
-                logger.info(f"Created view: {view_name}")
-            except Exception as e:
-                logger.error(f"Failed to create view {view_name}: {e}")
+            conn.execute(sql)
+            logger.info(f"Created view: {view_name}")
 
 
 def run_all_analyses(

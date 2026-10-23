@@ -2,6 +2,67 @@
 
 ETL pipeline for extracting, transforming, and analyzing SEO metrics from SimilarWeb data.
 
+## Run and verify
+
+Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
+
+```bash
+uv sync --frozen
+uv run --frozen main.py --output-root .verification
+uv run --frozen pytest -q
+uv run --frozen ruff check .
+uv run --frozen ruff format --check .
+```
+
+The pipeline reads the five saved HTML scrapes in `data/raw/scraped_html` and runs
+offline. It produces `.verification/data/transformed/polars_dump.csv`,
+`.verification/db/scraped_data.duckdb`, and six PNG charts under
+`.verification/data/visualizations`. Omit `--output-root` to update the original
+`data/` and `db/` outputs. Use `--input-dir PATH` to select another input directory.
+Processing failures raise exceptions and return a nonzero exit status. An empty
+input directory retains the existing behavior: log a warning and exit successfully
+without writing outputs. The extraction function retains its `None`-on-failure
+contract; the pipeline rejects that result before publishing incomplete data.
+
+The end-to-end tests run the actual CLI with isolated output directories, validate
+all five domains against the saved source values, check numeric and JSON database
+types, verify monthly calculations and relative rankings, check all six PNGs, and
+repeat the run to check that it replaces data without duplication. They also cover
+malformed inputs, missing or invalid SQL, missing traffic history, and zero baselines.
+
+The supplied data covers October-December 2022. Byte Trading has rank history but
+no visit history, so its visit growth remains null. Relative rankings sort missing
+growth last and sum the visits and rank-improvement positions; lower combined
+scores are better. Positive `rank_change` means improvement, while positive
+`rank_change_percent` means the numerical rank increased (worsened).
+Monthly charts include both metric levels and growth percentages, with calendar
+month labels so the growth analysis is visible in the exported PNGs.
+
+This repository processes saved scrapes; it contains no live scraper or Prefect
+flow. Verification covers extraction through chart generation.
+
+## Verification results
+
+Verified on 23 October 2026 using the supplied five HTML files:
+
+| Check | Result |
+| --- | --- |
+| Automated tests | 15 passed, including CLI execution and rerun checks |
+| Extracted and loaded domains | 5 |
+| Monthly visit observations with data | 12 across 4 domains |
+| Monthly rank observations | 15 across 5 domains |
+| Relative ranking results | All 5 domains, including missing traffic history |
+| Saved visualizations | 6 PNGs, visually inspected |
+| Code checks | Ruff lint, format, and Git whitespace checks passed |
+
+Verification reproduced and corrected duration integer overflow, cleaned metrics
+being dropped during database loading, malformed open-ended age labels, domains
+being omitted from rankings when all traffic history is absent, and failed
+processing being reported as successful. Regression tests preserve the existing
+extraction and empty-input contracts and prevent failed extraction from publishing
+null-domain records. Google's `00:10:35` is now stored as **635 seconds** in both
+the intermediate CSV and DuckDB.
+
 ## Data Flow
 
 <img width="1738" height="1099" alt="Data Scraping Pipeline excalidraw(1)" src="https://github.com/user-attachments/assets/3e761b71-aa88-455c-8c40-462359b43219" />

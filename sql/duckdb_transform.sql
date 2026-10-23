@@ -8,6 +8,8 @@ SELECT
     last_month_change,
     bounce_rate_raw,
     avg_visit_duration_raw,
+    bounce_rate_percent,
+    avg_visit_duration_seconds,
     visits_history_raw AS visits_history,
 
     MAP_FROM_ENTRIES(
@@ -24,11 +26,10 @@ SELECT
         LIST_TRANSFORM(
             age_distribution_raw,
             x -> struct_pack(
-                k := CONCAT(
-                    CAST(x.minAge AS VARCHAR),
-                    '-',
-                    COALESCE(CAST(x.maxAge AS VARCHAR), '65+')
-                ),
+                k := CASE WHEN x.maxAge IS NULL
+                    THEN CONCAT(CAST(x.minAge AS VARCHAR), '+')
+                    ELSE CONCAT(x.minAge, '-', x.maxAge)
+                END,
                 v := ROUND(x.value * 100, 2)
             )
         )
