@@ -1,12 +1,19 @@
-# SEO Mining and Analysis Pipeline
+# SEO Mining and Analysis
 
-ETL pipeline for extracting, transforming, and analyzing SEO metrics from SimilarWeb data.
+Offline command-line ETL pipeline for extracting, transforming, and analyzing SEO
+metrics from saved SimilarWeb HTML files.
+
+Repository: [vikramaditya-tatke/seo-mining-and-analysis](https://github.com/vikramaditya-tatke/seo-mining-and-analysis).
+The local checkout directory is `seo-mining-and-analysis`. This project runs as a
+Python CLI; Prefect orchestration and a web UI are not implemented.
 
 ## Run and verify
 
 Requires Python 3.12+ and [uv](https://docs.astral.sh/uv/).
 
 ```bash
+git clone git@github.com:vikramaditya-tatke/seo-mining-and-analysis.git
+cd seo-mining-and-analysis
 uv sync --frozen
 uv run --frozen main.py --output-root .verification
 uv run --frozen pytest -q
